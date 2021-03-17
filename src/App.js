@@ -1,4 +1,4 @@
-import React, {useRef} from 'react';
+import * as React from 'react';
 import {
   StatusBar,
   FlatList,
@@ -9,74 +9,118 @@ import {
   Dimensions,
   StyleSheet,
   TouchableOpacity,
+  Easing,
+  SafeAreaViewBase,
+  SafeAreaView,
 } from 'react-native';
 const {width, height} = Dimensions.get('screen');
 
-const data = [
-  'https://cdn.dribbble.com/users/3281732/screenshots/11192830/media/7690704fa8f0566d572a085637dd1eee.jpg?compress=1&resize=1200x1200',
-  'https://cdn.dribbble.com/users/3281732/screenshots/13130602/media/592ccac0a949b39f058a297fd1faa38e.jpg?compress=1&resize=1200x1200',
-  'https://cdn.dribbble.com/users/3281732/screenshots/9165292/media/ccbfbce040e1941972dbc6a378c35e98.jpg?compress=1&resize=1200x1200',
-  'https://cdn.dribbble.com/users/3281732/screenshots/11205211/media/44c854b0a6e381340fbefe276e03e8e4.jpg?compress=1&resize=1200x1200',
-  'https://cdn.dribbble.com/users/3281732/screenshots/7003560/media/48d5ac3503d204751a2890ba82cc42ad.jpg?compress=1&resize=1200x1200',
-  'https://cdn.dribbble.com/users/3281732/screenshots/6727912/samji_illustrator.jpeg?compress=1&resize=1200x1200',
-  'https://cdn.dribbble.com/users/3281732/screenshots/13661330/media/1d9d3cd01504fa3f5ae5016e5ec3a313.jpg?compress=1&resize=1200x1200',
-];
+const API_KEY = '563492ad6f9170000100000149311559039f4d3a8fa4fc48fadade6c';
+const API_URL =
+  'https://api.pexels.com/v1/search?query=nature&orientation=portrait&size=small&per_page=20';
 
-const imageW = width * 0.7;
-const imageH = imageW * 1.54;
+const IMAGE_SIZE = 80;
+
+const fetchImageFromPexels = async () => {
+  const data = await fetch(API_URL, {
+    headers: {
+      Authorization: API_KEY,
+    },
+  });
+  const {photos} = await data.json();
+  return photos;
+};
 
 export default () => {
-  const scrollX = useRef(new Animated.Value(0)).current;
+  const [images, setImages] = React.useState(null);
+  React.useEffect(() => {
+    const fetchImage = async () => {
+      const rawImages = await fetchImageFromPexels();
+      setImages(rawImages);
+    };
+    fetchImage();
+  }, []);
+
+  const topRef = React.useRef();
+  const thumbRef = React.useRef();
+  const [activeIndex, setActiveIndex] = React.useState(0);
+
+  const scrollToActiveIndex = (index) => {
+    setActiveIndex(index);
+    topRef?.current?.scrollToOffset({
+      offset: index * width,
+      animated: true,
+    });
+    if (index * (IMAGE_SIZE + 10) - IMAGE_SIZE / 2 > width / 2) {
+      thumbRef?.current?.scrollToOffset({
+        offset: index * (IMAGE_SIZE + 10) - width / 2 + IMAGE_SIZE / 2,
+        animated: true,
+      });
+    } else {
+      thumbRef?.current?.scrollToOffset({
+        offset: 0,
+        animated: true,
+      });
+    }
+  };
+
+  if (!images) {
+    return <Text>Loading.....</Text>;
+  }
 
   return (
-    <View style={{flex: 1, backgroundColor: '#000'}}>
-      <StatusBar hidden />
-      <View style={StyleSheet.absoluteFillObject}>
-        {data.map((e, index) => {
-          const inputRange = [
-            (index - 1) * width,
-            index * width,
-            (index + 1) * width,
-          ];
-          const opacity = scrollX.interpolate({
-            inputRange,
-            outputRange: [0, 1, 0],
-          });
-          return (
-            <Animated.Image
-              blurRadius={10}
-              source={{uri: e}}
-              key={`image-${index}`}
-              style={[StyleSheet.absoluteFillObject, {opacity}]}
-            />
-          );
-        })}
-      </View>
-      <Animated.FlatList
-        onScroll={Animated.event(
-          [{nativeEvent: {contentOffset: {x: scrollX}}}],
-          {useNativeDriver: true},
-        )}
-        keyExtractor={(_, index) => index.toString()}
-        data={data}
-        pagingEnabled
+    <>
+      <StatusBar translucent backgroundColor="transparent" />
+      <FlatList
+        ref={topRef}
+        data={images}
         horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        onMomentumScrollEnd={(ev) => {
+          console.log(ev.nativeEvent.contentOffset.x / width - 0.5);
+          scrollToActiveIndex(
+            Math.ceil(ev.nativeEvent.contentOffset.x / width - 0.5),
+          );
+        }}
+        keyExtractor={(_, index) => `${index}-images`}
         renderItem={({item}) => {
           return (
-            <View
-              style={{
-                width,
-                justifyContent: 'center',
-                alignItems: 'center',
-              }}>
+            <View style={{width, height}}>
               <Image
-                source={{uri: item}}
-                style={{height: imageH, width: imageW, borderRadius: 10}}
+                source={{uri: item.src.portrait}}
+                style={StyleSheet.absoluteFillObject}
               />
             </View>
           );
         }}
       />
-    </View>
+      <FlatList
+        ref={thumbRef}
+        data={images}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        keyExtractor={(_, index) => `${index}-images-2`}
+        style={{position: 'absolute', bottom: IMAGE_SIZE}}
+        contentContainerStyle={{marginHorizontal: 10}}
+        renderItem={({item, index}) => {
+          return (
+            <TouchableOpacity onPress={() => scrollToActiveIndex(index)}>
+              <Image
+                source={{uri: item.src.portrait}}
+                style={{
+                  width: IMAGE_SIZE,
+                  height: IMAGE_SIZE,
+                  borderRadius: 10,
+                  marginRight: 10,
+                  borderWidth: 2,
+                  borderColor: index === activeIndex ? '#fff' : 'transparent',
+                }}
+              />
+            </TouchableOpacity>
+          );
+        }}
+      />
+    </>
   );
 };
