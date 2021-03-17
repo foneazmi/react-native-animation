@@ -29,8 +29,8 @@ export default () => {
   const scrollX = useRef(new Animated.Value(0)).current;
 
   return (
-    <View style={{flex: 1, backgroundColor: '#000'}}>
-      <StatusBar hidden />
+    <>
+      <StatusBar translucent backgroundColor="transparent" />
       <View style={StyleSheet.absoluteFillObject}>
         {data.map((e, index) => {
           const inputRange = [
@@ -77,6 +77,6 @@ export default () => {
           );
         }}
       />
-    </View>
+    </>
   );
 };
